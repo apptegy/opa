@@ -46,6 +46,7 @@ type testCommandParams struct {
 	count        int
 	target       *util.EnumFlag
 	skipExitZero bool
+	capabilities *capabilitiesFlag
 }
 
 func newTestCommandParams() *testCommandParams {
@@ -53,6 +54,7 @@ func newTestCommandParams() *testCommandParams {
 		outputFormat: util.NewEnumFlag(testPrettyOutput, []string{testPrettyOutput, testJSONOutput, benchmarkGoBenchOutput}),
 		explain:      newExplainFlag([]string{explainModeFails, explainModeFull, explainModeNotes}),
 		target:       util.NewEnumFlag(compile.TargetRego, []string{compile.TargetRego, compile.TargetWasm}),
+		capabilities: newcapabilitiesFlag(),
 	}
 }
 
@@ -181,10 +183,18 @@ func opaTest(args []string) int {
 
 	defer store.Abort(ctx, txn)
 
+	var capabilities *ast.Capabilities
+	if testParams.capabilities.C != nil {
+		capabilities = testParams.capabilities.C
+	} else {
+		capabilities = ast.CapabilitiesForThisVersion()
+	}
+
 	compiler := ast.NewCompiler().
 		SetErrorLimit(testParams.errLimit).
 		WithPathConflictsCheck(storage.NonEmpty(ctx, store, txn)).
-		WithEnablePrintStatements(!testParams.benchmark)
+		WithEnablePrintStatements(!testParams.benchmark).
+		WithCapabilities(capabilities)
 
 	info, err := runtime.Term(runtime.Params{})
 	if err != nil {
@@ -362,5 +372,6 @@ func init() {
 	addIgnoreFlag(testCommand.Flags(), &testParams.ignore)
 	setExplainFlag(testCommand.Flags(), testParams.explain)
 	addTargetFlag(testCommand.Flags(), testParams.target)
+	addCapabilitiesFlag(testCommand.Flags(), testParams.capabilities)
 	RootCommand.AddCommand(testCommand)
 }
